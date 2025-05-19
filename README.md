@@ -1,36 +1,144 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## 📘 アプリケーション仕様書：VSCode作業時間可視化プラットフォーム
 
-## Getting Started
+### 1. サービス概要
 
-First, run the development server:
+VSCodeでのコーディング作業量（時間、言語、リポジトリ単位）をリアルタイムに収集・可視化するプラットフォーム。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+* **目的**：日々の開発活動を定量化・可視化し、自己管理や振り返りを支援
+* **対象ユーザー**：個人開発者、開発チーム
+
+---
+
+### 2. システム構成
+
+```
+┌────────────────────────────┐
+│        Webダッシュボード   │ ← React / Next.js
+│  ・ログイン（GitHub OAuth  │
+│  ・APIキー発行/表示        │
+│  ・作業時間グラフ表示      │
+└────────────┬───────────---─┘
+             │ Supabase JS SDK
+┌────────────▼────────---────┐
+│        Supabase Backend    │
+│  ・Auth（GitHub連携）      │
+│  ・PostgreSQL（作業ログDB）│
+│  ・RLS & セキュリティ      │
+└────────────┬────────---────┘
+             │ HTTP (insert)
+┌────────────▼───────---─────┐
+│     VSCode拡張機能         │
+│  ・ローカル編集状況を検出  │
+│  ・リポジトリ/言語情報取得 │
+│  ・APIキー設定に基づき送信 │
+└────────────────────────────┘
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. 主要機能
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+#### 📦 VSCode拡張機能
 
-## Learn More
+* ファイル変更/保存/編集中の言語・リポジトリ検出
+* セッション単位（1分）での作業時間ログ生成
+* SupabaseへAPIキー認証で送信
 
-To learn more about Next.js, take a look at the following resources:
+#### 🌐 Webダッシュボード
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+* GitHubログインによる認証
+* APIキーの発行と提示
+* 日別棒グラフ、言語別円グラフ、貢献度カレンダーの表示
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+### 4. Supabase DB設計
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+#### users
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| カラム      | 型    | 説明   |
+| -------- | ---- | ---- |
+| id       | UUID | 認証ID |
+| username | text | 表示名  |
+
+#### repositories
+
+| カラム      | 型    | 説明         |
+| -------- | ---- | ---------- |
+| id       | UUID |            |
+| user\_id | UUID | users.id参照 |
+| name     | text | リポジトリ名     |
+| path     | text | ローカルまたはURL |
+
+#### languages
+
+| カラム  | 型    | 説明                 |
+| ---- | ---- | ------------------ |
+| id   | UUID |                    |
+| name | text | 言語名（例: TypeScript） |
+
+#### coding\_sessions
+
+| カラム               | 型         | 説明                |
+| ----------------- | --------- | ----------------- |
+| id                | UUID      |                   |
+| user\_id          | UUID      | users.id参照        |
+| repo\_id          | UUID      | repositories.id参照 |
+| language\_id      | UUID      | languages.id参照    |
+| start\_time       | timestamp | セッション開始時刻         |
+| end\_time         | timestamp | セッション終了時刻         |
+| duration\_minutes | int       | 作業時間（分）           |
+
+---
+
+### 5. プロジェクト構成
+
+#### ルート構成
+
+```
+/project-root/
+├── vscode-extension/       # 拡張機能プロジェクト
+├── web-dashboard/          # Webアプリ（Next.js）
+└── docs/                   # ドキュメント類
+```
+
+#### vscode-extension/
+
+```
+├── src/
+│   ├── extension.ts
+│   ├── activityTracker.ts
+│   ├── gitUtils.ts
+│   ├── supabaseClient.ts
+│   └── sessionSender.ts
+├── package.json
+├── tsconfig.json
+└── README.md
+```
+
+#### web-dashboard/
+
+```
+├── pages/
+│   ├── index.tsx
+│   └── api-key.tsx
+├── components/
+│   ├── Graphs/
+│   └── Layout/
+├── lib/
+│   ├── supabaseClient.ts
+│   └── queries.ts
+├── styles/
+├── public/
+├── supabase/
+└── README.md
+```
+
+---
+
+### 6. 補足事項
+
+* APIキーによる認証方式を採用（拡張機能に貼り付け）
+* RLSでユーザーごとのデータ分離を実現
+* グラフにはRechartsやGitHub風カレンダーライブラリを使用
+* 今後モバイル対応やチーム機能追加も拡張可能
